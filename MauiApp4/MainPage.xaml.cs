@@ -4,6 +4,7 @@ using Microsoft.Maui.Graphics;
 using System;
 using System.Threading.Tasks;
 using Microsoft.Maui.Controls.Maps;
+using static Android.Icu.Text.Transliterator;
 
 namespace MauiApp4
 {
@@ -21,7 +22,7 @@ namespace MauiApp4
             vehiclePath = new Polyline(); // Initialize the polyline
             ShowVehicleOnMap(28.7041, 77.1025, "ABC123");
             StartVehicleMovementSimulation();
-            Task task = GetLocationAsync();
+           // Task task = GetLocationAsync();
         }
 
         private void ShowVehicleOnMap(double latitude, double longitude, string vehiclePlate)
@@ -62,12 +63,12 @@ namespace MauiApp4
                     double newLongitude = 77.1025 + (new Random().NextDouble() - 0.5) * 0.01; // Random offset
 
                     // Update the pin's location
-                    UpdateVehicleLocation(newLatitude, newLongitude);
+                    //UpdateVehicleLocation(newLatitude, newLongitude);
 
-                    //var location = await GetLocationAsync().ConfigureAwait(false);
-                    //UpdateVehicleLocation(location.latitude, location.longitude);
+                    var location = await GetLocationAsync().ConfigureAwait(false);
+                    UpdateVehicleLocation(location.latitude, location.longitude);
                     // Wait for 2 seconds before moving the vehicle again
-                    await Task.Delay(2000); // Update every 2 seconds
+                    await Task.Delay(500); // Update every 2 seconds
                 }
             }
             catch (Exception ex)
@@ -77,17 +78,39 @@ namespace MauiApp4
         }
 
         // Method to update the vehicle location on the map
-        private void UpdateVehicleLocation(double latitude, double longitude)
+        private async void UpdateVehicleLocation(double latitude, double longitude)
         {
-            // Update the pin's location
             var newLocation = new Location(latitude, longitude);
-            carPin.Location = newLocation;
+            
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                carPin.Location = newLocation;
 
-            // Add the new location to the polyline to draw the path
-            vehiclePath.Geopath.Add(newLocation);
+                carPin.Location = newLocation;
+                carPin.Type = PinType.Place;
 
-            // Optionally, move the map to the new location
-            map.MoveToRegion(MapSpan.FromCenterAndRadius(newLocation, Distance.FromKilometers(1)));
+                // Optionally, add a custom icon for the pin
+                // carPin.MarkerIcon = new PinIcon { ResourceId = "car_icon.png" }; // Ensure "car_icon.png" is in Resources/Images
+
+                // Add the pin to the map
+                map.Pins.Add(carPin);
+
+                // Add the new location to the polyline to draw the path
+                vehiclePath.Geopath.Add(newLocation);
+
+                // Optionally, move the map to the new location
+                map.MoveToRegion(MapSpan.FromCenterAndRadius(newLocation, Distance.FromMeters(1)));
+            });
+
+            //// Update the pin's location
+            //var newLocation = new Location(latitude, longitude);
+            //carPin.Location = newLocation;
+
+            //// Add the new location to the polyline to draw the path
+            //vehiclePath.Geopath.Add(newLocation);
+
+            //// Optionally, move the map to the new location
+            //map.MoveToRegion(MapSpan.FromCenterAndRadius(newLocation, Distance.FromKilometers(1)));
 
             // Save the current location as previous for next update
             previousLocation = newLocation;
@@ -98,7 +121,11 @@ namespace MauiApp4
             try
             {
                 // Request current location
-                var location = await Geolocation.GetLastKnownLocationAsync();
+                var location = await Geolocation.GetLocationAsync(new GeolocationRequest
+                {
+                    DesiredAccuracy = GeolocationAccuracy.High,
+                    Timeout = TimeSpan.FromSeconds(30)
+                });
 
                 if (location == null)
                 {
